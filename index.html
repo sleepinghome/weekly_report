@@ -304,7 +304,7 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
       } catch(e){}
     }
     if (!sampleFn) {
-      setStatus('이 기능은 Claude 안에서 열어야 동작해요 (Claude 앱/웹에서 이 페이지를 열어주세요).', true);
+      setStatus('Claude 연결 없이 열린 페이지예요 — 회사 작업일보 엑셀(반복되는 "작업일보" 표 양식) 파일은 자동으로 처리돼요. 사진·PDF·자유 텍스트 분석은 Claude 앱/웹에서 이 페이지를 열어야 동작해요.', true);
     }
   })();
 
@@ -428,7 +428,7 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
   }
 
   function updateGenerateEnabled(){
-    els.generateBtn.disabled = files.length === 0 || !sampleFn;
+    els.generateBtn.disabled = files.length === 0;
   }
 
   els.dropzone.addEventListener('click', function(){ els.fileInput.click(); });
@@ -854,6 +854,11 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
   }
 
   async function sampleJsonSafe(prompt, opts){
+    if (!sampleFn){
+      var e = new Error('이 내용은 Claude 안에서만 분석할 수 있어요 (사진·PDF·자유 텍스트는 AI 분석이 필요해요). 회사 작업일보 엑셀 양식(반복되는 "작업일보" 표)은 이 페이지에서 Claude 없이도 바로 처리돼요.');
+      e.code = 'no_claude';
+      throw e;
+    }
     return await sampleFn.json(prompt, opts);
   }
 
@@ -1030,6 +1035,101 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
     return merged;
   }
 
+  // ---------- local (no-AI) consolidation ----------
+  // Used when the page is opened outside the Claude runtime (e.g. hosted on
+  // GitHub Pages for coworkers who don't have Claude access) and every
+  // uploaded file was already parsed AI-free by the rule-based "작업일보"
+  // block parser above. Mirrors what the AI consolidation step normally
+  // does — bucket each task into the fixed taxonomy, sum headcounts per day,
+  // carry a short 작업내용 summary — using keyword matching instead of a
+  // model call. Classification for the four taxonomy'd categories should be
+  // accurate for the vocabulary these reports actually use; anything that
+  // doesn't match a keyword is kept as its original text and flagged in
+  // issues so a person can double-check it, rather than silently guessing.
+  var TASK_KEYWORDS = {
+    '기계설비': [
+      { canon: '보온작업', kws: ['보온'] },
+      { canon: '환기덕트', kws: ['환기덕트','덕트','제습기','전열교환기'] },
+      { canon: '급수 급탕, 난방, 냉방배관', kws: ['급수','급탕','난방','냉방','fcu'] },
+      { canon: '세대 배수, 배관 작업', kws: ['배수','트렌치','집수정','배수펌프','오수','우수'] },
+      { canon: '현장관리 및 도면검토', kws: ['도면검토','도면 검토','현장관리','현장 관리','현장전반','shop','자재정리','자재 정리','안전관리','안전 관리','서류작업','서류 작업'] }
+    ],
+    '소방설비': [
+      { canon: '보온작업', kws: ['보온'] },
+      { canon: '제연덕트', kws: ['제연덕트','제연 덕트','제연','덕트'] },
+      { canon: '소방배관', kws: ['소방배관','소방 배관','스프링클러','sp배관','sp 배관','송수구','소화전','소화배관','소화 배관','소화'] }
+    ],
+    '에어컨': [
+      { canon: '도면검토', kws: ['도면검토','도면 검토'] },
+      { canon: '배관설치', kws: ['배관','설치','덕트'] }
+    ],
+    '환기': [
+      { canon: '도면검토', kws: ['도면검토','도면 검토'] },
+      { canon: '배관설치', kws: ['배관','설치','덕트'] }
+    ]
+  };
+
+  function canonicalizeTaskLocal(majorCategory, rawTask){
+    var display = (rawTask || '').trim() || '작업';
+    var rules = TASK_KEYWORDS[majorCategory];
+    if (!rules) return { task: display, matched: true };
+    var t = normText(rawTask);
+    for (var i=0;i<rules.length;i++){
+      for (var j=0;j<rules[i].kws.length;j++){
+        if (t.indexOf(normText(rules[i].kws[j])) !== -1) return { task: rules[i].canon, matched: true };
+      }
+    }
+    return { task: display, matched: false };
+  }
+
+  function consolidateLocal(rawReports){
+    var wl = buildWeekLayout(rawReports);
+    var allDates = wl.prev.concat(wl.cur).concat(wl.next);
+    var allDatesSet = {};
+    allDates.forEach(function(d){ allDatesSet[d] = true; });
+    var inScope = rawReports.filter(function(r){ return r.date && allDatesSet[r.date]; });
+    var outOfScopeCount = rawReports.length - inScope.length;
+    var scoped = inScope.length ? inScope : rawReports;
+
+    var siteCandidates = [];
+    var rowMap = {};
+    var unmatchedSet = {};
+
+    scoped.forEach(function(rep){
+      if (rep.site) siteCandidates.push(rep.site);
+      var cat = rep.majorCategory || '기타';
+      (rep.items || []).forEach(function(it){
+        var rawTask = (it.task || '').trim();
+        var c = canonicalizeTaskLocal(cat, rawTask);
+        if (!c.matched) unmatchedSet[cat + ': ' + c.task] = true;
+        var key = cat + '||' + c.task;
+        if (!rowMap[key]) rowMap[key] = { majorCategory: cat, task: c.task, counts: {}, details: {} };
+        var row = rowMap[key];
+        if (rep.date) row.counts[rep.date] = (row.counts[rep.date] || 0) + (it.headcount || 0);
+        if (rawTask) row.details[rawTask] = (row.details[rawTask] || 0) + 1;
+      });
+    });
+
+    var rows = Object.keys(rowMap).map(function(k){
+      var r = rowMap[k];
+      var detailArr = Object.keys(r.details);
+      detailArr.sort(function(a,b){ return r.details[b] - r.details[a]; });
+      return { majorCategory: r.majorCategory, task: r.task, counts: r.counts, detail: detailArr.slice(0,3).join(' / ') };
+    });
+
+    var issues = [];
+    if (outOfScopeCount && inScope.length){
+      issues.push('업로드한 자료 중 이번 3주치 범위(전주/금주/차주) 밖에 있는 항목 ' + outOfScopeCount + '건은 이번 표에서 제외했어요 (다른 주차 데이터로 보여요).');
+    }
+    var unmatchedList = Object.keys(unmatchedSet);
+    issues.push(
+      'Claude 연결 없이(규칙 기반으로) 자동 정리했어요 — 인원수·날짜는 원본 그대로이지만, 세부작업 분류는 AI가 아니라 키워드 매칭으로 정했으니 한 번 검토해주세요.' +
+      (unmatchedList.length ? (' 특히 다음 항목은 정해진 목록과 자동으로 안 맞아 원본 문구 그대로 표시했어요: ' + unmatchedList.join(', ')) : '')
+    );
+
+    return { site: mostCommon(siteCandidates), rows: rows, issues: issues, weekLayout: wl, allDates: allDates };
+  }
+
   async function consolidate(rawReports){
     var wl = buildWeekLayout(rawReports);
     var allDates = wl.prev.concat(wl.cur).concat(wl.next);
@@ -1201,7 +1301,6 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
   // ---------- generate flow ----------
 
   els.generateBtn.addEventListener('click', async function(){
-    if (!sampleFn){ return; }
     els.generateBtn.disabled = true;
     setStatus('작업일보를 읽는 중…', true);
     var pending = files.filter(function(f){ return f.status !== 'done'; });
@@ -1227,7 +1326,7 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
     }
     setStatus('주간공정표로 통합하는 중…', true);
     try {
-      var result = await consolidate(allReports);
+      var result = sampleFn ? await consolidate(allReports) : consolidateLocal(allReports);
       renderResult(result);
       setStatus('');
     } catch(err){
@@ -1347,16 +1446,17 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
         });
         var countRowIdx = pushRow(countRow);
 
-        // Narrative row: same 작업내용/위치 text repeated under each week's
-        // block (the source template lets each week's description differ,
-        // but our extracted data only carries one description per task).
+        // Narrative row: 작업내용/위치 text under each week's block — only for
+        // a week that actually has headcount data for this row, so a week
+        // with no reported/planned work doesn't show the same real-work
+        // description as if it applied there too.
         var narrRow = emptyRow();
         var narrText = it.detail || '';
-        if (narrText){
-          narrRow[COLS.prevStart] = narrText;
-          narrRow[COLS.curStart] = narrText;
-          narrRow[COLS.nextStart] = narrText;
-        }
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          var weekHasData = wl[wk].some(function(d){ return (it.counts && it.counts[d]); });
+          if (narrText && weekHasData) narrRow[range.start] = narrText;
+        });
         var narrRowIdx = pushRow(narrRow);
 
         merges.push({ s:{r:countRowIdx,c:COLS.task}, e:{r:narrRowIdx,c:COLS.taskEnd} });
@@ -1614,18 +1714,24 @@ footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding
         rowN++;
 
         // Narrative row: 작업내용/위치 text, merged across each week's block.
+        // Only shown for a week that actually has headcount data for this row —
+        // otherwise the same real-work description (a specific pipe/location)
+        // would get repeated into 금주/차주 blocks that have no reported or
+        // planned work at all, wrongly implying that work happened/is planned
+        // there too (previously this text was written into every week
+        // unconditionally, which read as the same content looping 3x).
         var narrRowIdx = rowN;
         var narrText = it.detail || '';
         mergeR(countRowIdx,COLS.task,narrRowIdx,COLS.taskEnd);
-        if (narrText){
-          WEEK_COL_RANGES.forEach(function(range){
-            cell(narrRowIdx,range.start).value = narrText;
-            mergeR(narrRowIdx,range.start,narrRowIdx,range.end);
-            var nc = cell(narrRowIdx,range.start);
-            nc.font = { name: TPL.fontNum, size:10 };
-            nc.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
-          });
-        }
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          var weekHasData = wl[wk].some(function(d){ return (it.counts && it.counts[d]); });
+          mergeR(narrRowIdx,range.start,narrRowIdx,range.end);
+          var nc = cell(narrRowIdx,range.start);
+          if (narrText && weekHasData) nc.value = narrText;
+          nc.font = { name: TPL.fontNum, size:10 };
+          nc.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+        });
         rowN++;
 
         applyGrid(countRowIdx, narrRowIdx, 0, TOTAL_COLS-1, { topMedium:false, bottomMedium:false });
