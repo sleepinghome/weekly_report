@@ -1,0 +1,1761 @@
+<title>주간공정표 생성</title>
+<style>
+/* Layout concept: single-column working tool — config strip, upload queue,
+   generated table, export — blueprint/engineering register matching the
+   team's other internal pages (같은 회사 다른 도구와 톤을 맞춤). */
+:root{
+  --bg:#f3f2ee;
+  --surface:#ffffff;
+  --surface-2:#eef1f5;
+  --ink:#16202c;
+  --ink-dim:#4c5866;
+  --ink-faint:#8993a1;
+  --line:#d9dee4;
+  --line-soft:#e8ebef;
+  --accent:#19407D;
+  --accent-ink:#ffffff;
+  --warn:#8a5a12;
+  --warn-bg:#fbf0dd;
+  --good:#1c7a4a;
+  --good-bg:#e8f6ee;
+  --danger:#a8271f;
+  --danger-bg:#fbeae9;
+  --brand-navy:#002855;
+  --brand-navy-2:#19407D;
+  --brand-cyan:#00ADE4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161c;
+    --surface:#1a2028;
+    --surface-2:#212832;
+    --ink:#e8ecf1;
+    --ink-dim:#a9b3bf;
+    --ink-faint:#6d7885;
+    --line:#2c3541;
+    --line-soft:#232b35;
+    --accent:#4f86d6;
+    --accent-ink:#0b1420;
+    --warn:#e8b364;
+    --warn-bg:#2c2413;
+    --good:#5fd08c;
+    --good-bg:#122a1d;
+    --danger:#f0847c;
+    --danger-bg:#2c1615;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161c;
+  --surface:#1a2028;
+  --surface-2:#212832;
+  --ink:#e8ecf1;
+  --ink-dim:#a9b3bf;
+  --ink-faint:#6d7885;
+  --line:#2c3541;
+  --line-soft:#232b35;
+  --accent:#4f86d6;
+  --accent-ink:#0b1420;
+  --warn:#e8b364;
+  --warn-bg:#2c2413;
+  --good:#5fd08c;
+  --good-bg:#122a1d;
+  --danger:#f0847c;
+  --danger-bg:#2c1615;
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans KR', -apple-system, sans-serif;}
+#app{max-width:980px; margin:0 auto; padding:20px 16px 48px; display:flex; flex-direction:column; gap:18px;}
+
+.mono{font-family:'IBM Plex Mono', ui-monospace, monospace;}
+
+.brand-header{border-radius:10px; overflow:hidden; border:1px solid var(--line);}
+.brand-top{background:var(--surface); display:flex; align-items:center; gap:9px; padding:10px 14px;}
+.brand-logo{
+  width:26px; height:26px; border-radius:50%; background:var(--brand-cyan); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  font-family:Georgia, 'Times New Roman', serif; flex:none;
+}
+.brand-name{font-weight:700; color:var(--brand-navy-2); font-size:15px; letter-spacing:-0.01em;}
+.brand-nav{background:var(--brand-navy); color:#fff; padding:8px 14px; font-size:13px; font-weight:600; letter-spacing:-0.01em;}
+
+header.top{display:flex; flex-direction:column; gap:4px; margin-top:14px;}
+header.top h1{font-size:20px; margin:0; letter-spacing:-0.01em;}
+header.top p{margin:0; color:var(--ink-dim); font-size:13px; line-height:1.6;}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px;}
+.card + .card{margin-top:0}
+
+.field-row{display:flex; gap:12px; flex-wrap:wrap;}
+.field{display:flex; flex-direction:column; gap:5px; flex:1 1 160px; min-width:0;}
+.field label{font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; letter-spacing:.02em;}
+.field input[type=text], .field input[type=date]{
+  border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:14px;
+  background:var(--surface-2); color:var(--ink); font-family:inherit;
+}
+.field input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+.dropzone{
+  border:1.5px dashed var(--line); border-radius:10px; padding:28px 16px; text-align:center;
+  color:var(--ink-dim); font-size:13.5px; cursor:pointer; transition:border-color .15s, background .15s;
+}
+.dropzone.drag{border-color:var(--accent); background:var(--surface-2);}
+.dropzone strong{color:var(--ink); font-weight:600;}
+.dropzone .hint{font-size:12px; color:var(--ink-faint); margin-top:6px;}
+
+textarea#pasteArea{
+  width:100%; min-height:90px; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+  background:var(--surface-2); color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+  resize:vertical;
+}
+
+.btn{
+  appearance:none; border:none; border-radius:7px; padding:9px 16px; font-size:13.5px; font-weight:600;
+  cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:6px;
+}
+.btn-primary{background:var(--accent); color:var(--accent-ink);}
+.btn-primary:disabled{opacity:.4; cursor:not-allowed;}
+.btn-ghost{background:transparent; color:var(--accent); border:1px solid var(--line);}
+.btn-ghost:hover{border-color:var(--accent);}
+.btn-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+
+.filelist{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+.filerow{
+  display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line-soft);
+  border-radius:8px; background:var(--surface-2); font-size:13px;
+}
+.filerow .name{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.filerow .sub{color:var(--ink-faint); font-size:11.5px; font-family:'IBM Plex Mono',monospace;}
+.badge{font-size:11px; font-family:'IBM Plex Mono',monospace; padding:2px 8px; border-radius:999px; white-space:nowrap;}
+.badge.wait{background:var(--surface); color:var(--ink-faint); border:1px solid var(--line);}
+.badge.busy{background:var(--warn-bg); color:var(--warn);}
+.badge.done{background:var(--good-bg); color:var(--good);}
+.badge.err{background:var(--danger-bg); color:var(--danger);}
+.badge.empty{background:var(--warn-bg); color:var(--warn);}
+.filerow .remove{color:var(--ink-faint); cursor:pointer; font-size:16px; line-height:1; padding:2px 4px;}
+.filerow .remove:hover{color:var(--danger);}
+
+.status-banner{
+  display:none; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; font-size:13px;
+  background:var(--surface-2); color:var(--ink-dim); border:1px solid var(--line-soft);
+}
+.status-banner.show{display:flex;}
+
+.spinner{width:13px; height:13px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin .8s linear infinite; flex:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+section.results{display:none; flex-direction:column; gap:14px;}
+section.results.show{display:flex;}
+
+.result-head{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;}
+.result-head h2{font-size:16px; margin:0;}
+.result-head .range{color:var(--ink-faint); font-size:12.5px; font-family:'IBM Plex Mono',monospace;}
+
+.table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
+table.grid{border-collapse:collapse; width:100%; font-size:12.5px; min-width:720px;}
+table.grid th, table.grid td{border-bottom:1px solid var(--line-soft); border-right:1px solid var(--line-soft); padding:7px 8px; text-align:center; white-space:nowrap;}
+table.grid th{background:var(--surface-2); color:var(--ink-dim); font-weight:600; font-family:'IBM Plex Mono',monospace; font-size:11.5px;}
+table.grid td.task{text-align:left; white-space:normal; min-width:150px; font-weight:500;}
+table.grid td.detail{text-align:left; white-space:normal; min-width:220px; color:var(--ink-dim); font-size:12px;}
+table.grid td.num{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+table.grid td.num.zero{color:var(--ink-faint);}
+table.grid tr.cat-head td{background:var(--surface-2); font-weight:700; text-align:left; color:var(--accent);}
+table.grid tr.subtotal td{background:var(--surface-2); font-weight:700;}
+table.grid tr.grandtotal td{background:var(--accent); color:var(--accent-ink); font-weight:700;}
+table.grid td:last-child, table.grid th:last-child{border-right:none;}
+table.grid td.wk-total, table.grid th.wk-total{background:var(--surface-2); font-weight:700; border-right:2px solid var(--line);}
+table.grid tr.grandtotal td.wk-total{background:var(--accent); border-right:2px solid var(--accent-ink);}
+table.grid tr.subtotal td.wk-total{border-right:2px solid var(--line);}
+
+.issues{background:var(--warn-bg); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius:8px; padding:12px 14px;}
+.issues h3{margin:0 0 6px; font-size:13px; color:var(--warn);}
+.issues ul{margin:0; padding-left:18px; font-size:12.5px; color:var(--ink-dim); line-height:1.7;}
+
+footer.note{color:var(--ink-faint); font-size:11.5px; text-align:center; padding-top:6px;}
+
+@media (max-width:520px){
+  .field{flex:1 1 100%;}
+}
+</style>
+
+<div id="app">
+  <div class="brand-header">
+    <div class="brand-top"><span class="brand-logo">D</span><span class="brand-name">대방산업개발</span></div>
+    <div class="brand-nav">업무도우미 · 주간공정표 생성</div>
+  </div>
+
+  <header class="top">
+    <h1>주간공정표 생성</h1>
+    <p>협력업체 작업일보(사진·PDF·엑셀·텍스트)를 올리면, 본사 보고용 주간공정표 형태로 자동 정리합니다.<br>공종 대분류는 고정하고 세부 작업명은 그날 내용에 맞춰 자동으로 구성돼요.</p>
+  </header>
+
+  <div class="card">
+    <div class="field-row">
+      <div class="field">
+        <label for="siteName">현장명 (선택 — 비워두면 자동 인식)</label>
+        <input type="text" id="siteName" placeholder="예: 화성동탄3차(C18BL)">
+      </div>
+    </div>
+
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div><strong>작업일보 파일을 끌어다 놓거나 클릭해서 선택하세요</strong></div>
+      <div class="hint">사진(출역점검표 촬영본) · PDF · 엑셀(.xlsx/.csv) 여러 개를 한 번에 올릴 수 있어요</div>
+      <input type="file" id="fileInput" multiple hidden accept="image/*,.pdf,.xlsx,.xls,.csv,.txt">
+    </div>
+
+    <div style="margin-top:12px;">
+      <label class="mono" style="font-size:11.5px; color:var(--ink-faint); display:block; margin-bottom:5px;">또는 카톡 텍스트를 그대로 붙여넣기 (여러 건 한 번에 붙여도 됩니다)</label>
+      <textarea id="pasteArea" placeholder="[작업일보]&#10;날짜: 2026-09-29&#10;업체명: 비에스이엔지&#10;공종: 기계설비&#10;작업내용: 306동 FCU 보온작업&#10;위치: 306동 1,2라인 10~25층&#10;인원: 5명&#10;특이사항: 없음"></textarea>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-ghost" id="addPasteBtn">텍스트 추가</button>
+      </div>
+    </div>
+
+    <div class="filelist" id="fileList"></div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-primary" id="generateBtn" disabled>주간공정표 생성</button>
+      <div class="status-banner" id="statusBanner"><span class="spinner"></span><span id="statusText"></span></div>
+    </div>
+  </div>
+
+  <section class="results" id="results">
+    <div class="result-head">
+      <h2 id="resultTitle">주간공정표</h2>
+      <span class="range mono" id="resultRange"></span>
+    </div>
+    <div class="table-wrap">
+      <table class="grid" id="resultTable"></table>
+    </div>
+    <div class="issues" id="issuesBox" style="display:none;">
+      <h3>확인이 필요해요</h3>
+      <ul id="issuesList"></ul>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="downloadBtn">엑셀로 다운로드</button>
+      <button class="btn btn-ghost" id="copyBtn">표 복사</button>
+    </div>
+  </section>
+
+  <footer class="note">업로드한 파일은 이 페이지 안에서만 처리되며, 생성된 표는 사람이 한 번 검토한 뒤 사용하는 것을 권장합니다.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var files = []; // {id, name, kind, status, textContent, imageBlob, note, error}
+  var fileSeq = 0;
+  var lastResult = null; // {rows, dates, siteName, issues}
+
+  var els = {
+    dropzone: document.getElementById('dropzone'),
+    fileInput: document.getElementById('fileInput'),
+    fileList: document.getElementById('fileList'),
+    pasteArea: document.getElementById('pasteArea'),
+    addPasteBtn: document.getElementById('addPasteBtn'),
+    generateBtn: document.getElementById('generateBtn'),
+    statusBanner: document.getElementById('statusBanner'),
+    statusText: document.getElementById('statusText'),
+    results: document.getElementById('results'),
+    resultTitle: document.getElementById('resultTitle'),
+    resultRange: document.getElementById('resultRange'),
+    resultTable: document.getElementById('resultTable'),
+    issuesBox: document.getElementById('issuesBox'),
+    issuesList: document.getElementById('issuesList'),
+    downloadBtn: document.getElementById('downloadBtn'),
+    copyBtn: document.getElementById('copyBtn'),
+    siteName: document.getElementById('siteName'),
+  };
+
+  if (window.pdfjsLib) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    } catch(e){}
+  }
+
+  var sampleFn = null;
+  var downloadsCap = null;
+  // Fallback image size budget if sample.limits() can't be read — this
+  // viewer's actual cap (reported to be 250KB) is read dynamically below,
+  // with a safety margin so our own compression doesn't land right on the edge.
+  var imageMaxBytes = 230 * 1024;
+  (async function init(){
+    try {
+      var s = await (window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null));
+      sampleFn = s;
+    } catch(e){ sampleFn = null; }
+    try {
+      var d = await (window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null));
+      downloadsCap = d;
+    } catch(e){ downloadsCap = null; }
+    if (sampleFn && sampleFn.limits){
+      try {
+        var lims = await sampleFn.limits();
+        if (lims && lims.images && lims.images.maxInputBytes){
+          imageMaxBytes = Math.floor(lims.images.maxInputBytes * 0.9);
+        }
+      } catch(e){}
+    }
+    if (!sampleFn) {
+      setStatus('이 기능은 Claude 안에서 열어야 동작해요 (Claude 앱/웹에서 이 페이지를 열어주세요).', true);
+    }
+  })();
+
+  function friendlyError(err){
+    if (!err) return '알 수 없는 오류';
+    var map = {
+      image_rejected: '이미지가 너무 크거나 지원하지 않는 형식이에요. 자동 압축 후에도 실패했다면 사진을 다시 찍거나 더 작게 줄여서 올려주세요.',
+      not_granted: 'Claude 사용 권한이 허용되지 않았어요. 페이지에 뜨는 권한 요청을 확인해주세요.',
+      rate_limited: '요청이 몰려서 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+      prompt_too_large: '문서 내용이 너무 길어요. 파일을 나눠서 올려주세요.',
+      empty_completion: '분석 결과가 비어 있어요.',
+      invalid_json: '결과 형식을 해석하지 못했어요.',
+      refused: 'Claude가 이 내용을 처리하지 않았어요.',
+      upstream_error: '일시적인 오류가 발생했어요. 다시 시도해주세요.',
+      sampling_disabled: '이 계정에서는 Claude 기능을 사용할 수 없어요.',
+      session_expired: '로그인이 만료됐어요. 새로고침 후 다시 시도해주세요.',
+      images_unavailable: '이 화면에서는 이미지 분석을 사용할 수 없어요.'
+    };
+    if (err.code && map[err.code]) return map[err.code];
+    return (err.message || err.text) || String(err) || '알 수 없는 오류';
+  }
+
+  function setStatus(text, persistent){
+    if (!text){ els.statusBanner.classList.remove('show'); return; }
+    els.statusText.textContent = text;
+    els.statusBanner.classList.add('show');
+    if (!persistent){
+      // caller controls clearing
+    }
+  }
+
+  function fileKind(file){
+    var name = file.name.toLowerCase();
+    if (file.type.indexOf('image/') === 0) return 'image';
+    if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+    if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) return 'sheet';
+    return 'text';
+  }
+
+  function addFiles(fileArr){
+    Array.prototype.forEach.call(fileArr, function(f){
+      var entry = {
+        id: 'f' + (++fileSeq),
+        name: f.name,
+        kind: fileKind(f),
+        status: 'ready',
+        blob: f,
+        textContent: null,
+        note: '',
+      };
+      files.push(entry);
+    });
+    renderFileList();
+    updateGenerateEnabled();
+  }
+
+  function addPastedText(text){
+    if (!text.trim()) return;
+    var entry = {
+      id: 'f' + (++fileSeq),
+      name: '붙여넣은 텍스트 (' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ')',
+      kind: 'text',
+      status: 'ready',
+      blob: null,
+      textContent: text,
+      note: '',
+    };
+    files.push(entry);
+    renderFileList();
+    updateGenerateEnabled();
+  }
+
+  function removeFile(id){
+    files = files.filter(function(f){ return f.id !== id; });
+    renderFileList();
+    updateGenerateEnabled();
+  }
+
+  function kindLabel(k){
+    return k === 'image' ? '사진' : k === 'pdf' ? 'PDF' : k === 'sheet' ? '엑셀' : '텍스트';
+  }
+
+  function renderFileList(){
+    els.fileList.innerHTML = '';
+    files.forEach(function(f){
+      var row = document.createElement('div');
+      row.className = 'filerow';
+      var badgeClass = f.status === 'ready' ? 'wait' : f.status === 'busy' ? 'busy' : f.status === 'done' ? 'done'
+        : (f.status === 'empty' ? 'empty' : 'err');
+      var badgeText = f.status === 'ready' ? '대기' : f.status === 'busy' ? '분석중' : f.status === 'done' ? '완료'
+        : (f.status === 'empty' ? '내용없음' : '오류');
+      row.innerHTML =
+        '<span class="name">' + escapeHtml(f.name) + '</span>' +
+        '<span class="sub">' + kindLabel(f.kind) + '</span>' +
+        '<span class="badge ' + badgeClass + '"' + (f.error ? ' title="' + escapeHtml(f.error) + '"' : '') + '>' + badgeText + '</span>' +
+        '<span class="remove" data-id="' + f.id + '">&times;</span>';
+      els.fileList.appendChild(row);
+      if (f.error && (f.status === 'error' || f.status === 'empty')){
+        var errRow = document.createElement('div');
+        errRow.className = 'sub';
+        errRow.style.cssText = 'padding:0 4px 2px 11px; color:var(--danger); font-size:11.5px;';
+        errRow.textContent = f.error;
+        els.fileList.appendChild(errRow);
+      } else if (f.note && f.status === 'done'){
+        var noteRow = document.createElement('div');
+        noteRow.className = 'sub';
+        noteRow.style.cssText = 'padding:0 4px 2px 11px; color:var(--warn); font-size:11.5px;';
+        noteRow.textContent = f.note;
+        els.fileList.appendChild(noteRow);
+      }
+    });
+    Array.prototype.forEach.call(els.fileList.querySelectorAll('.remove'), function(el){
+      el.addEventListener('click', function(){ removeFile(el.getAttribute('data-id')); });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function updateGenerateEnabled(){
+    els.generateBtn.disabled = files.length === 0 || !sampleFn;
+  }
+
+  els.dropzone.addEventListener('click', function(){ els.fileInput.click(); });
+  els.dropzone.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') els.fileInput.click(); });
+  els.dropzone.addEventListener('dragover', function(e){ e.preventDefault(); els.dropzone.classList.add('drag'); });
+  els.dropzone.addEventListener('dragleave', function(){ els.dropzone.classList.remove('drag'); });
+  els.dropzone.addEventListener('drop', function(e){
+    e.preventDefault(); els.dropzone.classList.remove('drag');
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  els.fileInput.addEventListener('change', function(){
+    addFiles(els.fileInput.files);
+    els.fileInput.value = '';
+  });
+  els.addPasteBtn.addEventListener('click', function(){
+    addPastedText(els.pasteArea.value);
+    els.pasteArea.value = '';
+  });
+
+  // ---------- extraction ----------
+
+  async function pdfToText(blob){
+    var buf = await blob.arrayBuffer();
+    var task = pdfjsLib.getDocument({ data: buf });
+    var pdf = await task.promise;
+    var full = '';
+    for (var i = 1; i <= pdf.numPages; i++){
+      var page = await pdf.getPage(i);
+      var content = await page.getTextContent();
+      var strs = content.items.map(function(it){ return it.str; });
+      full += strs.join(' ') + '\n';
+    }
+    return full;
+  }
+
+  function sheetToText(blob){
+    return blob.arrayBuffer().then(function(buf){
+      var wb = XLSX.read(buf, { type: 'array' });
+      var out = '';
+      wb.SheetNames.forEach(function(name){
+        out += '=== ' + name + ' ===\n';
+        out += XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        out += '\n';
+      });
+      return out;
+    });
+  }
+
+  // Some subcontractors keep ALL of their daily reports in one workbook —
+  // one sheet per month, with every day's "작업일보" stacked one after
+  // another (title row, 업체명/현장명/공사명/작성일자, an 출력인원 table,
+  // then a 합계 row before the next day's block starts). That can add up to
+  // 1000+ rows per sheet, which blew past what a single AI extraction call
+  // handles well (chunking it blindly mid-block produced invalid_json /
+  // upstream_error). Since the layout is completely regular, parse it
+  // directly — no AI call needed at all for a file like this.
+  function normText(v){ return (v == null ? '' : String(v)).replace(/\s+/g, ''); }
+
+  function normalizeCategoryJS(raw){
+    raw = raw || '';
+    var map = [
+      ['소방', '소방설비'], ['전기', '전기'], ['에어컨', '에어컨'], ['공조', '에어컨'],
+      ['환기', '환기'], ['물탱크', '물탱크'], ['저수조', '물탱크'],
+      ['기계', '기계설비'], ['배관', '기계설비'], ['설비', '기계설비'],
+    ];
+    for (var i = 0; i < map.length; i++){ if (raw.indexOf(map[i][0]) !== -1) return map[i][1]; }
+    return '기타';
+  }
+
+  function isoFromDateCell(d){
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function parseBlocksFromRows(rows, out){
+    for (var i = 0; i < rows.length; i++){
+      var row = rows[i] || [];
+      var isMarker = row.some(function(c){ return normText(c) === '작업일보'; });
+      if (!isMarker) continue;
+
+      var dateVal = null, company = '', site = '', project = '';
+      var headerRowIdx = -1, cols = null;
+      var WINDOW = 20;
+      for (var j = i; j < Math.min(rows.length, i + WINDOW); j++){
+        var r = rows[j] || [];
+        r.forEach(function(cell){
+          if (cell instanceof Date && !dateVal) dateVal = cell;
+          if (typeof cell === 'string'){
+            var m;
+            if (!company && (m = cell.match(/업체명\s*[:：]\s*(.+)/))) company = m[1].trim();
+            if (!site && (m = cell.match(/현장명\s*[:：]\s*(.+)/))) site = m[1].trim();
+            if (!project && (m = cell.match(/공사명\s*[:：]\s*(.+)/))) project = m[1].trim();
+          }
+        });
+        if (headerRowIdx === -1){
+          var idxGubun = r.findIndex(function(c){ return normText(c) === '구분'; });
+          var idxJik = r.findIndex(function(c){ return normText(c) === '직종'; });
+          var idxName = r.findIndex(function(c){ return normText(c) === '성명'; });
+          if (idxGubun !== -1 && idxJik !== -1 && idxName !== -1){
+            headerRowIdx = j;
+            cols = {
+              gubun: idxGubun, jikjong: idxJik, name: idxName,
+              count: r.findIndex(function(c){ return normText(c) === '인원'; }),
+              task: r.findIndex(function(c){ return normText(c) === '작업내용'; }),
+            };
+          }
+        }
+      }
+      if (headerRowIdx === -1) continue; // doesn't match this template
+
+      var lastTask = '', lastJikjong = '';
+      var items = [];
+      var k = headerRowIdx + 1;
+      for (; k < rows.length; k++){
+        var dr = rows[k] || [];
+        var gubunVal = dr[cols.gubun];
+        if (normText(gubunVal) === '합계'){ k++; break; }
+        if (normText(gubunVal) === '작업일보') break; // safety: no 합계 seen
+        // Some daily blocks omit the "합계" label on the totals row (it's just a
+        // bare number), so also stop the moment we see the "인원현황" cumulative
+        // table marker — otherwise its 전월누계/총누계 columns get misread as
+        // 인원/성명 worker rows and headcounts balloon into the thousands.
+        if (dr.some(function(c){ return normText(c) === '인원현황'; })) break;
+        var name = cols.name >= 0 ? dr[cols.name] : null;
+        if (name != null && String(name).trim() !== ''){
+          var jikCell = cols.jikjong >= 0 ? dr[cols.jikjong] : null;
+          var jik = (jikCell != null && String(jikCell).trim() !== '') ? String(jikCell).trim() : lastJikjong;
+          lastJikjong = jik;
+          var taskCell = cols.task >= 0 ? dr[cols.task] : null;
+          var task = (taskCell != null && String(taskCell).trim() !== '') ? String(taskCell).trim() : lastTask;
+          lastTask = task;
+          var cnt = cols.count >= 0 ? (Number(dr[cols.count]) || 0) : 0;
+          // Individual worker names aren't needed in a headcount-only weekly
+          // schedule report — only track task + headcount, never names.
+          items.push({ task: task || jik || '작업', headcount: cnt });
+        }
+      }
+      i = Math.max(i, k - 1);
+      if (!items.length || !dateVal) continue;
+
+      var merged = {};
+      items.forEach(function(it){
+        if (!merged[it.task]) merged[it.task] = { task: it.task, headcount: 0 };
+        merged[it.task].headcount += it.headcount;
+      });
+      var finalItems = Object.keys(merged).map(function(key){
+        return { task: merged[key].task, location: '', headcount: merged[key].headcount };
+      });
+
+      out.push({
+        date: isoFromDateCell(dateVal),
+        site: site,
+        company: company,
+        majorCategory: normalizeCategoryJS(project || company),
+        items: finalItems,
+        note: '',
+      });
+    }
+  }
+
+  // Returns [] (never throws) when the file doesn't match this specific
+  // layout — caller falls back to the normal text+AI extraction path.
+  async function tryParseDailyBlockSheet(blob){
+    try {
+      var buf = await blob.arrayBuffer();
+      var wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      var out = [];
+      wb.SheetNames.forEach(function(name){
+        var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+        parseBlocksFromRows(rows, out);
+      });
+      return out;
+    } catch(e){
+      return [];
+    }
+  }
+
+  var EXTRACT_SCHEMA_NOTE =
+    '다음은 건설현장 협력업체가 제출한 작업일보(출역점검표/작업일보) 내용입니다. ' +
+    '하나의 입력 안에 여러 날짜/여러 업체의 보고가 섞여 있을 수 있습니다(예: 카톡 대화를 통째로 붙여넣은 경우). ' +
+    '각 보고 단위(날짜+업체 조합)마다 하나의 객체로 만들어, JSON 배열로만 답변하세요. 다른 설명은 절대 쓰지 마세요.\n\n' +
+    '배열의 각 객체 형식:\n' +
+    '{\n' +
+    '  "date": "YYYY-MM-DD (문서에서 찾은 날짜. 연도가 2자리(예: 26)면 2026으로 보정)",\n' +
+    '  "site": "현장명 (문서에 있으면, 없으면 빈 문자열)",\n' +
+    '  "company": "업체명 (문서에 있으면, 없으면 빈 문자열)",\n' +
+    '  "majorCategory": "기계설비/소방설비/전기/에어컨/환기/물탱크/기타 중 이 작업의 공종에 가장 가까운 것 하나",\n' +
+    '  "items": [\n' +
+    '    {"task": "작업내용을 20자 내외로 간결하게 요약", "location": "작업위치(동/호수/층 등), 없으면 빈 문자열", "headcount": 이_작업을_수행한_인원수_숫자}\n' +
+    '  ],\n' +
+    '  "note": "특이사항이나 특별히 언급된 내용, 없으면 빈 문자열"\n' +
+    '}\n\n' +
+    '규칙:\n' +
+    '- 같은 작업을 여러 명이 함께 했으면 하나의 item으로 묶고 headcount에 인원수를 넣으세요.\n' +
+    '- 소장, 공사부장, 공무 등 관리인력도 반드시 빠짐없이 포함하세요 (예: task="현장 총괄관리" 또는 "도면검토/서류업무").\n' +
+    '- items의 headcount 합계가 문서에 나온 전체 인원수와 일치해야 합니다.\n' +
+    '- 이미지 안의 표/손글씨도 최대한 읽어서 반영하세요.\n' +
+    '- 개별 인원의 이름(성명)은 추출하지 마세요. headcount(인원수)만 필요합니다.\n';
+
+  // Decode a blob into an <img> once so multiple resize attempts don't each
+  // re-decode the source file.
+  function loadImageEl(blob){
+    return new Promise(function(resolve, reject){
+      try {
+        var url = URL.createObjectURL(blob);
+        var img = new Image();
+        img.onload = function(){ resolve({ img: img, url: url }); };
+        img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('image decode failed')); };
+        img.src = url;
+      } catch(e){ reject(e); }
+    });
+  }
+
+  // Phone-camera photos of paper forms are often several MB and this
+  // viewer's `sample` image input is capped well below that (observed:
+  // rejected over ~250KB) — so downscale AND step quality/size down until
+  // the encoded JPEG actually fits the budget, not just a fixed guess.
+  function compressImageToLimit(blob, maxBytes){
+    maxBytes = maxBytes || imageMaxBytes;
+    var attempts = [
+      {dim:1600, q:0.85}, {dim:1600, q:0.7}, {dim:1400, q:0.65},
+      {dim:1200, q:0.6}, {dim:1000, q:0.55}, {dim:900, q:0.5},
+      {dim:800, q:0.45}, {dim:700, q:0.4}, {dim:600, q:0.35}
+    ];
+    return loadImageEl(blob).then(function(loaded){
+      var img = loaded.img;
+      var w0 = img.naturalWidth || 1600, h0 = img.naturalHeight || 1600;
+      var best = blob;
+      var chain = Promise.resolve();
+      var found = null;
+      attempts.forEach(function(a){
+        chain = chain.then(function(){
+          if (found) return;
+          var scale = Math.min(1, a.dim / Math.max(w0, h0));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(w0 * scale));
+          canvas.height = Math.max(1, Math.round(h0 * scale));
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          return new Promise(function(res){ canvas.toBlob(res, 'image/jpeg', a.q); }).then(function(out){
+            if (out){
+              best = out;
+              if (out.size <= maxBytes) found = out;
+            }
+          });
+        });
+      });
+      return chain.then(function(){
+        URL.revokeObjectURL(loaded.url);
+        return found || best;
+      });
+    }).catch(function(){ return blob; });
+  }
+
+  // sample()'s input cap is 256 KiB of UTF-8 text total (prompt + instruction
+  // text together), and Korean text runs ~3 bytes/char, so a raw file's
+  // extracted text (a bulky Excel export, a big pasted KakaoTalk dump, a
+  // text-heavy PDF) can blow past it well before it "looks" long. Rather than
+  // cut content, split it into multiple calls on line boundaries so every
+  // part still gets analyzed, then concatenate the results.
+  function utf8ByteLength(str){
+    return new TextEncoder().encode(str).length;
+  }
+  function truncateToBytes(str, maxBytes){
+    str = str || '';
+    if (utf8ByteLength(str) <= maxBytes) return { text: str, truncated: false };
+    var lo = 0, hi = str.length;
+    while (lo < hi){
+      var mid = (lo + hi + 1) >> 1;
+      if (utf8ByteLength(str.slice(0, mid)) <= maxBytes) lo = mid; else hi = mid - 1;
+    }
+    return { text: str.slice(0, lo), truncated: true };
+  }
+  var TEXT_INPUT_BUDGET = 180000; // bytes; leaves headroom under 262144 for the instruction text + JSON wrapper
+
+  // Splits text into chunks that each fit the byte budget, breaking on line
+  // boundaries so a row of data is never cut in half. A single line that is
+  // itself over budget (very rare) is hard-split as a last resort, but no
+  // content is dropped — every byte ends up in some chunk.
+  function chunkTextByBytes(str, maxBytes){
+    str = str || '';
+    if (utf8ByteLength(str) <= maxBytes) return [str];
+    var lines = str.split('\n');
+    var chunks = [];
+    var current = [];
+    var currentBytes = 0;
+    function flush(){
+      if (current.length){ chunks.push(current.join('\n')); current = []; currentBytes = 0; }
+    }
+    lines.forEach(function(line){
+      var lineBytes = utf8ByteLength(line) + 1;
+      if (lineBytes > maxBytes){
+        flush();
+        var rest = line;
+        while (rest.length){
+          var piece = truncateToBytes(rest, maxBytes);
+          chunks.push(piece.text);
+          rest = rest.slice(piece.text.length);
+        }
+        return;
+      }
+      if (current.length && currentBytes + lineBytes > maxBytes) flush();
+      current.push(line);
+      currentBytes += lineBytes;
+    });
+    flush();
+    return chunks;
+  }
+
+  async function extractFromFile(entry){
+    entry.status = 'busy';
+    entry.error = '';
+    renderFileList();
+    try {
+      var results;
+      if (entry.kind === 'image'){
+        // Photos of handwritten/printed forms need the stronger vision model.
+        var imgBlob = await compressImageToLimit(entry.blob);
+        results = await sampleJsonSafe(EXTRACT_SCHEMA_NOTE, { images: [imgBlob], modelTier: 'complex' });
+      } else {
+        var text = entry.textContent;
+        if (entry.kind === 'pdf'){
+          text = await pdfToText(entry.blob);
+          if (!text || text.replace(/\s/g,'').length < 15){
+            // likely a scanned/image-based PDF: fall back to page rasterization
+            text = null;
+            var rasterBlob = await pdfFirstPageToImage(entry.blob);
+            if (rasterBlob){
+              rasterBlob = await compressImageToLimit(rasterBlob);
+              results = await sampleJsonSafe(EXTRACT_SCHEMA_NOTE, { images: [rasterBlob], modelTier: 'complex' });
+            }
+          }
+        } else if (entry.kind === 'sheet'){
+          var blockResults = await tryParseDailyBlockSheet(entry.blob);
+          if (blockResults.length){
+            results = blockResults;
+            entry.note = '반복되는 작업일보 양식으로 인식해서 AI 없이 바로 처리했어요 (' + blockResults.length + '건).';
+          } else {
+            text = await sheetToText(entry.blob);
+          }
+        }
+        if (!results){
+          // Plain text/sheet/pdf-text extraction is a simpler pattern-match
+          // task — the quicker default tier is enough and cuts wait time.
+          var chunks = chunkTextByBytes(text, TEXT_INPUT_BUDGET);
+          var combined = [];
+          var anyOk = false, lastErr = null, failCount = 0;
+          for (var ci=0; ci<chunks.length; ci++){
+            var label = chunks.length > 1
+              ? ('\n\n(참고: 아래는 전체 문서 중 ' + (ci+1) + '/' + chunks.length + ' 부분입니다. 이 부분에서 찾을 수 있는 내용만 추출하세요.)')
+              : '';
+            try {
+              var partRes = await sampleJsonSafe(EXTRACT_SCHEMA_NOTE + label + '\n\n문서 내용:\n' + chunks[ci], { modelTier: 'default' });
+              if (!Array.isArray(partRes)) partRes = partRes ? [partRes] : [];
+              combined = combined.concat(partRes);
+              anyOk = true;
+            } catch(e){
+              lastErr = e; failCount++;
+            }
+          }
+          if (!anyOk && lastErr) throw lastErr;
+          results = combined;
+          if (chunks.length > 1 && failCount){
+            entry.note = '내용이 많아 ' + chunks.length + '부분으로 나눠 분석했고, 그중 ' + failCount + '부분은 실패했어요 (나머지는 반영됨).';
+          } else if (chunks.length > 1){
+            entry.note = '내용이 많아 ' + chunks.length + '부분으로 나눠 전부 분석했어요.';
+          }
+        }
+      }
+      if (!Array.isArray(results)) results = results ? [results] : [];
+      entry.parsed = results;
+      if (!results.length){
+        entry.status = 'empty';
+        entry.error = 'Claude가 이 파일에서 작업일보 내용을 찾지 못했어요. 사진이 흐리거나 표가 잘렸을 수 있어요.';
+      } else {
+        entry.status = 'done';
+      }
+    } catch(err){
+      entry.status = 'error';
+      entry.error = friendlyError(err);
+    }
+    renderFileList();
+  }
+
+  // Runs async workers over `items` with at most `concurrency` in flight at
+  // once. Extraction was previously fully sequential (one file at a time),
+  // which is the main reason a batch of daily reports felt slow — most of
+  // the wait was just files waiting their turn, not actual processing time.
+  function runWithConcurrency(items, worker, concurrency, onProgress){
+    return new Promise(function(resolve){
+      var idx = 0, active = 0, done = 0;
+      var total = items.length;
+      if (!total){ resolve(); return; }
+      function settle(){
+        active--; done++;
+        if (onProgress) onProgress(done, total);
+        pump();
+      }
+      function pump(){
+        if (idx >= total && active === 0){ resolve(); return; }
+        while (active < concurrency && idx < total){
+          var item = items[idx++];
+          active++;
+          worker(item).then(settle, settle);
+        }
+      }
+      pump();
+    });
+  }
+
+  async function pdfFirstPageToImage(blob){
+    try {
+      var buf = await blob.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      var page = await pdf.getPage(1);
+      var viewport = page.getViewport({ scale: 2 });
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      var ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      return await new Promise(function(resolve){ canvas.toBlob(function(b){ resolve(b); }, 'image/png'); });
+    } catch(e){ return null; }
+  }
+
+  async function sampleJsonSafe(prompt, opts){
+    return await sampleFn.json(prompt, opts);
+  }
+
+  // ---------- consolidation ----------
+
+  function isoDate(d){
+    return d.toISOString().slice(0,10);
+  }
+  // The company's work-week runs Sunday→Saturday.
+  function startOfWeek(d){
+    var x = new Date(d);
+    x.setHours(0,0,0,0);
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  }
+  function weekDatesFrom(start){
+    var out = [];
+    for (var i=0;i<7;i++){
+      var d = new Date(start); d.setDate(d.getDate()+i);
+      out.push(isoDate(d));
+    }
+    return out;
+  }
+
+  // Builds the 3-week (전주/금주/차주) date layout that mirrors the
+  // company's own rolling weekly-schedule template.
+  //
+  // This is a forward-looking 예정공정표 (planning sheet), not a 3-week
+  // history dump: 전주 is the week the uploaded daily reports actually cover
+  // (the most recent reporting week — real, reported attendance), and
+  // 금주/차주 are the NEXT two weeks after that, entered as a forecast/plan
+  // rather than pulled from any daily report (we have no future attendance
+  // data — those two weeks start out blank for the site team to fill in,
+  // unless a separate planning file is supplied).
+  function buildWeekLayout(rawReports){
+    var allDates = rawReports.map(function(r){ return r.date; }).filter(Boolean).sort();
+    var prevWeekStart;
+    if (allDates.length){
+      // Anchor on the MOST RECENT date, not the earliest — a file can carry
+      // months of history (e.g. one workbook with a sheet per month, every
+      // day's report stacked in it), and "전주" should track the latest
+      // reporting date, not wherever the data happens to start.
+      prevWeekStart = startOfWeek(new Date(allDates[allDates.length - 1] + 'T00:00:00'));
+    } else {
+      prevWeekStart = startOfWeek(new Date());
+    }
+    var curStart = new Date(prevWeekStart); curStart.setDate(curStart.getDate()+7);
+    var nextStart = new Date(prevWeekStart); nextStart.setDate(nextStart.getDate()+14);
+    return {
+      prev: weekDatesFrom(prevWeekStart),
+      cur: weekDatesFrom(curStart),
+      next: weekDatesFrom(nextStart),
+    };
+  }
+
+  // Splits an array of report objects into batches whose combined JSON stays
+  // under maxBytes. Nothing is dropped — every item lands in some batch,
+  // just possibly its own call instead of being lumped with the rest.
+  function chunkArrayByBytes(items, maxBytes){
+    var chunks = [];
+    var current = [];
+    var currentBytes = 2; // "[]"
+    items.forEach(function(item){
+      var itemBytes = utf8ByteLength(JSON.stringify(item)) + 1;
+      if (current.length && currentBytes + itemBytes > maxBytes){
+        chunks.push(current);
+        current = [];
+        currentBytes = 2;
+      }
+      current.push(item);
+      currentBytes += itemBytes;
+    });
+    if (current.length) chunks.push(current);
+    return chunks;
+  }
+
+  // Fixed 세부작업 taxonomy per majorCategory, taken from the company's own
+  // template. Keeps the weekly table to a short, consistent set of rows per
+  // trade instead of a new row for every slightly-different task description
+  // the AI happens to extract. Categories not listed here (전기/물탱크/기타)
+  // have no fixed list — the AI keeps using free-form task names for those.
+  var TASK_TAXONOMY = {
+    '기계설비': ['현장관리 및 도면검토', '세대 배수, 배관 작업', '급수 급탕, 난방, 냉방배관', '보온작업', '환기덕트'],
+    '소방설비': ['소방배관', '제연덕트', '보온작업'],
+    '에어컨': ['도면검토', '배관설치'],
+    '환기': ['도면검토', '배관설치']
+  };
+
+  function taxonomyText(){
+    return Object.keys(TASK_TAXONOMY).map(function(cat){
+      return '  ' + cat + ': ' + TASK_TAXONOMY[cat].join(' / ');
+    }).join('\n');
+  }
+
+  function consolidatePrompt(rawJson, wl, batchLabel){
+    return (
+      '다음은 한 건설현장의 협력업체 여러 곳으로부터 받은 작업일보를 각각 분석한 결과입니다(JSON 배열). ' +
+      '이를 본사에 보고하는 주간공정표(전주/금주/차주 3주치를 한 화면에 나열하는 형식) 로 통합해주세요. ' +
+      '이 표는 미래를 향한 예정공정표입니다: 전주는 실제로 작업일보가 있는(이미 지나간) 주이고, ' +
+      '금주/차주는 그 다음 두 주로, 아직 작업일보가 없는 예정/계획 구간입니다 — 이 두 주에 넣을 실제 데이터가 없는 것은 정상이니 issues에 문제로 적지 마세요.' +
+      (batchLabel ? (' (참고: 이번 요청은 전체 입력 중 ' + batchLabel + ' 부분입니다. 이 부분에 있는 내용만 정리하세요. 나머지는 별도로 처리됩니다.)') : '') + '\n\n' +
+      '전주 날짜(일~토, 실제 보고 데이터): ' + wl.prev.join(', ') + '\n' +
+      '금주 날짜(일~토, 예정): ' + wl.cur.join(', ') + '\n' +
+      '차주 날짜(일~토, 예정): ' + wl.next.join(', ') + '\n\n' +
+      '분석 결과:\n' + rawJson + '\n\n' +
+      '아래 형식의 JSON 객체 하나로만 답변하세요:\n' +
+      '{\n' +
+      '  "site": "현장명 (입력 데이터에서 가장 흔하게 등장하는 현장명, 없으면 빈 문자열)",\n' +
+      '  "rows": [\n' +
+      '    {"majorCategory":"기계설비", "task":"세부작업명", ' +
+      '"counts": {"2026-09-29": 5}, "detail":"위치나 작업내용 요약"}\n' +
+      '  ],\n' +
+      '  "issues": ["애매하거나 확인이 필요한 사항을 사람이 읽을 수 있는 문장으로"]\n' +
+      '}\n\n' +
+      '규칙:\n' +
+      '- majorCategory는 기계설비/소방설비/전기/에어컨/환기/물탱크/기타 중에서만 고르세요.\n' +
+      '- 아래 공종별 세부작업 목록이 정해져 있는 공종은, task를 반드시 그 목록 중 하나로 골라 쓰세요. 표현이 조금 다르더라도 뜻이 같으면 목록의 표현 그대로 통일하고, 절대 새로운 표현으로 별도 row를 만들지 마세요. 목록에 있는 어떤 항목과도 맞지 않는 완전히 다른 작업일 때만 새 task명을 만드세요.\n' +
+      taxonomyText() + '\n' +
+      '- 목록이 없는 공종(전기/물탱크/기타)은 기존처럼 같은 작업끼리 자연스럽게 하나의 row로 통일하세요.\n' +
+      '- counts의 key는 위에 나열된 21개 날짜(전주/금주/차주) 중 실제로 그 작업이 있었던 날짜만 넣으세요 (없는 날은 생략).\n' +
+      '- 위 21개 날짜 범위 밖의 날짜가 문서에 있으면 counts에 넣지 말고 issues에 설명하세요.\n' +
+      '- 인원수가 서로 다른 파일 사이에서 겹치거나 이상하면 issues에 적으세요.\n' +
+      '- 입력에 있는 항목은 하나도 빠짐없이 반영하세요 (다른 task로 합치더라도 인원수는 그대로 합산).\n' +
+      '- detail에는 개별 인원의 이름(성명)을 절대 넣지 마세요. 위치/작업내용만 요약하세요.\n' +
+      '- JSON 외의 다른 텍스트는 절대 쓰지 마세요.'
+    );
+  }
+
+  function mostCommon(arr){
+    var counts = {}, best = arr[0] || '', bestCount = 0;
+    arr.forEach(function(s){
+      counts[s] = (counts[s] || 0) + 1;
+      if (counts[s] > bestCount){ bestCount = counts[s]; best = s; }
+    });
+    return best;
+  }
+
+  // When the raw per-file results are combined into more than one batch (see
+  // chunkArrayByBytes), each batch is consolidated independently and then
+  // merged here — asking Claude to unify any rows that are really the same
+  // task, rather than silently truncating or dropping content to fit one call.
+  async function mergePartials(partials, wl){
+    var allRows = [], allIssues = [], siteCandidates = [];
+    partials.forEach(function(p){
+      if (p.site) siteCandidates.push(p.site);
+      (p.rows || []).forEach(function(r){ allRows.push(r); });
+      (p.issues || []).forEach(function(i){ allIssues.push(i); });
+    });
+    if (allRows.length < 2){
+      return { site: mostCommon(siteCandidates), rows: allRows, issues: allIssues };
+    }
+    var mergePrompt =
+      '다음은 같은 건설현장을 여러 배치로 나눠 각각 분석한 주간공정표 항목들입니다(JSON 배열). ' +
+      '나눠서 분석했기 때문에 같은 공종의 같은 작업이 이름만 살짝 다르게 중복되어 있을 수 있습니다. ' +
+      '사실상 같은 공종+같은 작업인 항목은 하나로 합치고(날짜별 인원수는 합산), 서로 다른 작업은 그대로 유지해서 최종 rows 배열로 정리해주세요. ' +
+      '입력에 있는 날짜별 인원수를 하나도 빠짐없이 최종 결과에 반영하세요 (합칠 때 합산할 뿐 절대 누락하지 마세요).\n\n' +
+      '아래 공종은 세부작업 목록이 정해져 있으니, task는 반드시 이 목록의 표현으로 통일하세요 (표현만 다른 중복 row를 절대 만들지 마세요):\n' +
+      taxonomyText() + '\n\n' +
+      '항목들:\n' + JSON.stringify(allRows) + '\n\n' +
+      '아래 형식의 JSON 객체 하나로만 답변하세요:\n' +
+      '{ "rows": [ {"majorCategory":"...", "task":"...", "counts": {"2026-09-29": 5}, "detail":"..."} ] }\n\n' +
+      'JSON 외의 다른 텍스트는 절대 쓰지 마세요.';
+    var merged;
+    try {
+      merged = await sampleJsonSafe(mergePrompt, { modelTier: 'complex' });
+    } catch(e){
+      // Merge call failed — fall back to the un-merged union so nothing is
+      // lost (may contain near-duplicate rows, still strictly more complete
+      // than dropping data would be).
+      merged = { rows: allRows };
+    }
+    merged.site = mostCommon(siteCandidates);
+    merged.issues = allIssues;
+    return merged;
+  }
+
+  async function consolidate(rawReports){
+    var wl = buildWeekLayout(rawReports);
+    var allDates = wl.prev.concat(wl.cur).concat(wl.next);
+
+    // A single file can legitimately carry months of history (one workbook,
+    // one sheet per month, every day stacked in it). Only the 3 weeks this
+    // report actually covers are in scope — narrow to those before batching
+    // so an unrelated 100+ days of history doesn't dilute (or blow past the
+    // size budget of) the consolidation call. Anything outside the window is
+    // out of scope for "이번 주 보고", not data the user asked to see reported.
+    var allDatesSet = {};
+    allDates.forEach(function(d){ allDatesSet[d] = true; });
+    var inScope = rawReports.filter(function(r){ return r.date && allDatesSet[r.date]; });
+    var outOfScopeCount = rawReports.length - inScope.length;
+    rawReports = inScope.length ? inScope : rawReports; // never zero-out everything
+
+    // The combined per-file extraction results can add up past the 256KiB
+    // sample() cap when a lot of files were uploaded at once. Instead of
+    // dropping anything, split into multiple consolidate calls that together
+    // cover every item, then merge their outputs into one result.
+    var CONSOLIDATE_JSON_BUDGET = 150000; // bytes; leaves headroom for the prompt/instruction text
+    var batches = chunkArrayByBytes(rawReports, CONSOLIDATE_JSON_BUDGET);
+
+    var partials = [];
+    for (var i=0;i<batches.length;i++){
+      var label = batches.length > 1 ? ((i+1) + '/' + batches.length) : null;
+      var prompt = consolidatePrompt(JSON.stringify(batches[i]), wl, label);
+      partials.push(await sampleJsonSafe(prompt, { modelTier: 'complex' }));
+    }
+
+    var result = partials.length === 1 ? partials[0] : await mergePartials(partials, wl);
+    result.weekLayout = wl;
+    result.allDates = allDates;
+    if (outOfScopeCount && inScope.length){
+      result.issues = result.issues || [];
+      result.issues.unshift('업로드한 자료 중 이번 3주치 범위(전주/금주/차주) 밖에 있는 항목 ' + outOfScopeCount + '건은 이번 표에서 제외했어요 (다른 주차 데이터로 보여요).');
+    }
+    return result;
+  }
+
+  // ---------- rendering ----------
+
+  var CATEGORY_ORDER = ['기계설비','소방설비','전기','에어컨','환기','물탱크','기타'];
+  // Sun-first order, matching the company's Sunday→Saturday work week.
+  var DOW = ['일','월','화','수','목','금','토'];
+  var DOW_SUNDAY_IDX = 0; // index of 일(Sun) within DOW — the only day colored red
+  var WEEK_LABELS = ['전 주','금 주','차 주'];
+
+  var WEEK_KEYS = ['prev','cur','next'];
+
+  function emptyWeekTotals(wl){
+    var o = {};
+    WEEK_KEYS.forEach(function(wk){ o[wk] = wl[wk].map(function(){ return 0; }); });
+    return o;
+  }
+
+  function renderResult(result){
+    lastResult = result;
+    var siteName = els.siteName.value.trim() || result.site || '현장';
+    els.resultTitle.textContent = siteName + ' 주간공정표';
+    var wl = result.weekLayout;
+    els.resultRange.textContent = wl.prev[0] + ' ~ ' + wl.next[6] + ' (전주·금주·차주)';
+
+    var rowsByCat = {};
+    (result.rows || []).forEach(function(r){
+      var cat = r.majorCategory || '기타';
+      if (!rowsByCat[cat]) rowsByCat[cat] = [];
+      rowsByCat[cat].push(r);
+    });
+
+    var table = els.resultTable;
+    table.innerHTML = '';
+    var thead = document.createElement('thead');
+    var tr1 = document.createElement('tr');
+    var tr2 = document.createElement('tr');
+
+    function addTh(row, html, colspan, rowspan, cls){
+      var th = document.createElement('th');
+      th.innerHTML = html;
+      if (colspan) th.colSpan = colspan;
+      if (rowspan) th.rowSpan = rowspan;
+      if (cls) th.className = cls;
+      row.appendChild(th);
+    }
+
+    addTh(tr1, '공종', 1, 2);
+    addTh(tr1, '세부작업', 1, 2);
+    WEEK_LABELS.forEach(function(label){ addTh(tr1, label, 8, 1); });
+    addTh(tr1, '작업내용', 1, 2);
+
+    WEEK_KEYS.forEach(function(wk){
+      wl[wk].forEach(function(d, i){
+        addTh(tr2, DOW[i] + '<br><span class="mono" style="font-weight:400;">' + d.slice(5) + '</span>');
+      });
+      addTh(tr2, '누계', 1, 1, 'wk-total');
+    });
+
+    thead.appendChild(tr1);
+    thead.appendChild(tr2);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    var dayTotals = emptyWeekTotals(wl);
+    var weekGrand = { prev: 0, cur: 0, next: 0 };
+
+    CATEGORY_ORDER.concat(Object.keys(rowsByCat).filter(function(c){ return CATEGORY_ORDER.indexOf(c) === -1; }))
+      .forEach(function(cat){
+        var rows = rowsByCat[cat];
+        if (!rows || !rows.length) return;
+        var catDayTotals = emptyWeekTotals(wl);
+        var catWeekTotal = { prev: 0, cur: 0, next: 0 };
+
+        rows.forEach(function(r){
+          var tr = document.createElement('tr');
+          var cells = ['<td class="task">' + escapeHtml(cat) + '</td>', '<td class="task">' + escapeHtml(r.task || '') + '</td>'];
+          WEEK_KEYS.forEach(function(wk){
+            var weekTotal = 0;
+            wl[wk].forEach(function(d, i){
+              var v = (r.counts && r.counts[d]) || 0;
+              weekTotal += v;
+              catDayTotals[wk][i] += v;
+              dayTotals[wk][i] += v;
+              cells.push('<td class="num' + (v ? '' : ' zero') + '">' + (v || '–') + '</td>');
+            });
+            catWeekTotal[wk] += weekTotal;
+            weekGrand[wk] += weekTotal;
+            cells.push('<td class="num wk-total">' + (weekTotal || '–') + '</td>');
+          });
+          cells.push('<td class="detail">' + escapeHtml(r.detail || '') + '</td>');
+          tr.innerHTML = cells.join('');
+          tbody.appendChild(tr);
+        });
+
+        var subtr = document.createElement('tr');
+        subtr.className = 'subtotal';
+        var subCells = ['<td>' + escapeHtml(cat) + ' 소계</td>', '<td></td>'];
+        WEEK_KEYS.forEach(function(wk){
+          catDayTotals[wk].forEach(function(v){ subCells.push('<td class="num">' + (v || '–') + '</td>'); });
+          subCells.push('<td class="num wk-total">' + catWeekTotal[wk] + '</td>');
+        });
+        subCells.push('<td></td>');
+        subtr.innerHTML = subCells.join('');
+        tbody.appendChild(subtr);
+      });
+
+    var gtr = document.createElement('tr');
+    gtr.className = 'grandtotal';
+    var gCells = ['<td>총 합계</td>', '<td></td>'];
+    WEEK_KEYS.forEach(function(wk){
+      dayTotals[wk].forEach(function(v){ gCells.push('<td class="num">' + (v || '–') + '</td>'); });
+      gCells.push('<td class="num wk-total">' + weekGrand[wk] + '</td>');
+    });
+    gCells.push('<td></td>');
+    gtr.innerHTML = gCells.join('');
+    tbody.appendChild(gtr);
+
+    table.appendChild(tbody);
+
+    if (result.issues && result.issues.length){
+      els.issuesBox.style.display = 'block';
+      els.issuesList.innerHTML = result.issues.map(function(i){ return '<li>' + escapeHtml(i) + '</li>'; }).join('');
+    } else {
+      els.issuesBox.style.display = 'none';
+    }
+
+    els.results.classList.add('show');
+  }
+
+  // ---------- generate flow ----------
+
+  els.generateBtn.addEventListener('click', async function(){
+    if (!sampleFn){ return; }
+    els.generateBtn.disabled = true;
+    setStatus('작업일보를 읽는 중…', true);
+    var pending = files.filter(function(f){ return f.status !== 'done'; });
+    setStatus('작업일보를 읽는 중… (0/' + pending.length + ')', true);
+    await runWithConcurrency(pending, extractFromFile, 3, function(done, total){
+      setStatus('작업일보를 읽는 중… (' + done + '/' + total + ')', true);
+    });
+    var allReports = [];
+    files.forEach(function(f){
+      if (f.parsed) allReports = allReports.concat(f.parsed);
+    });
+    if (!allReports.length){
+      var failed = files.filter(function(f){ return f.status === 'error' || f.status === 'empty'; });
+      var msg = '추출된 내용이 없어요.';
+      if (failed.length){
+        msg += ' (' + failed.map(function(f){ return f.name + ': ' + (f.error || '실패'); }).join(' / ') + ')';
+      } else {
+        msg += ' 파일을 확인해주세요.';
+      }
+      setStatus(msg, true);
+      els.generateBtn.disabled = false;
+      return;
+    }
+    setStatus('주간공정표로 통합하는 중…', true);
+    try {
+      var result = await consolidate(allReports);
+      renderResult(result);
+      setStatus('');
+    } catch(err){
+      setStatus('통합 중 오류가 발생했어요: ' + ((err && err.message) || err), true);
+    }
+    els.generateBtn.disabled = false;
+  });
+
+  // ---------- export ----------
+
+  // Builds a 27-col AOA reproducing the real company template's layout:
+  // A=구분(대분류), B:C=세부작업(merged across a 2-row count+narrative pair),
+  // D:J=전주, K:Q=금주, R:X=차주 (7 day columns each), Y/Z/AA=전주누계/금주누계/차주누계
+  // as three TRAILING columns (not interleaved after each week, matching the
+  // original). Each task gets two physical rows — a headcount row (daily
+  // numbers + week total) and a narrative row (작업내용/위치, merged across
+  // that week's 7 day columns) — plus a vertical 구분 merge spanning the whole
+  // category, an 출력인원 per-category summary table, and 주요공정/특이사항
+  // section rows, all as in the original file this was modeled on.
+  var COLS = {
+    gubun: 0, task: 1, taskEnd: 2,
+    prevStart: 3, prevEnd: 9,
+    curStart: 10, curEnd: 16,
+    nextStart: 17, nextEnd: 23,
+    prevTotal: 24, curTotal: 25, nextTotal: 26
+  };
+  var WEEK_COL_RANGES = [
+    { start: COLS.prevStart, end: COLS.prevEnd, total: COLS.prevTotal },
+    { start: COLS.curStart, end: COLS.curEnd, total: COLS.curTotal },
+    { start: COLS.nextStart, end: COLS.nextEnd, total: COLS.nextTotal }
+  ];
+  var TOTAL_COLS = 27;
+
+  function buildAOA(result, siteName){
+    var wl = result.weekLayout;
+    var aoa = [];
+    var merges = [];
+    var rowN = 0;
+
+    function emptyRow(){ var a = []; for (var i=0;i<TOTAL_COLS;i++) a.push(''); return a; }
+    function pushRow(row){ aoa.push(row); rowN++; return rowN - 1; }
+
+    // Title
+    pushRow([siteName + ' 주간예정공정표']);
+    merges.push({ s:{r:0,c:0}, e:{r:0,c:TOTAL_COLS-1} });
+
+    // 현장명 / DATE
+    var today = new Date();
+    var todayStr = today.getFullYear() + '.' + String(today.getMonth()+1).padStart(2,'0') + '.' + String(today.getDate()).padStart(2,'0');
+    var infoRow = emptyRow();
+    infoRow[COLS.gubun] = '현 장 명 : ' + siteName;
+    infoRow[COLS.prevTotal] = 'DATE  ' + todayStr;
+    var infoRowIdx = pushRow(infoRow);
+    merges.push({ s:{r:infoRowIdx,c:COLS.gubun}, e:{r:infoRowIdx,c:COLS.nextEnd} });
+    merges.push({ s:{r:infoRowIdx,c:COLS.prevTotal}, e:{r:infoRowIdx,c:COLS.nextTotal} });
+
+    // Header row 1: 구분 | 공종 | 전주 | 금주 | 차주 | 전주누계 | 금주누계 | 차주누계
+    var head1 = emptyRow();
+    head1[COLS.gubun] = '구분';
+    head1[COLS.task] = '공종';
+    head1[COLS.prevStart] = '전 주';
+    head1[COLS.curStart] = '금 주';
+    head1[COLS.nextStart] = '차 주';
+    head1[COLS.prevTotal] = '전주누계';
+    head1[COLS.curTotal] = '금주누계';
+    head1[COLS.nextTotal] = '차주누계';
+    var head1Idx = pushRow(head1);
+
+    // Header row 2: 요일 + 날짜 per day column
+    var head2 = emptyRow();
+    WEEK_KEYS.forEach(function(wk, wi){
+      var range = WEEK_COL_RANGES[wi];
+      wl[wk].forEach(function(d,i){ head2[range.start+i] = DOW[i] + ' ' + d.slice(5); });
+    });
+    var head2Idx = pushRow(head2);
+
+    merges.push({ s:{r:head1Idx,c:COLS.gubun}, e:{r:head2Idx,c:COLS.gubun} });
+    merges.push({ s:{r:head1Idx,c:COLS.task}, e:{r:head2Idx,c:COLS.taskEnd} });
+    WEEK_COL_RANGES.forEach(function(range){
+      merges.push({ s:{r:head1Idx,c:range.start}, e:{r:head1Idx,c:range.end} });
+      merges.push({ s:{r:head1Idx,c:range.total}, e:{r:head2Idx,c:range.total} });
+    });
+
+    var rowsByCat = {};
+    (result.rows||[]).forEach(function(r){
+      var cat = r.majorCategory || '기타';
+      if (!rowsByCat[cat]) rowsByCat[cat] = [];
+      rowsByCat[cat].push(r);
+    });
+
+    var catOrderFull = CATEGORY_ORDER.concat(Object.keys(rowsByCat).filter(function(c){ return CATEGORY_ORDER.indexOf(c)===-1; }));
+    var catSummary = [];
+    var grand = emptyWeekTotals(wl);
+    var grandTotal = { prev:0, cur:0, next:0 };
+
+    catOrderFull.forEach(function(cat){
+      var items = rowsByCat[cat];
+      if (!items || !items.length) return;
+      var catStartRow = rowN;
+      var catDay = emptyWeekTotals(wl);
+      var catTotal = { prev:0, cur:0, next:0 };
+
+      items.forEach(function(it, idx){
+        var countRow = emptyRow();
+        if (idx === 0) countRow[COLS.gubun] = cat;
+        countRow[COLS.task] = it.task || '';
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          var wt = 0;
+          wl[wk].forEach(function(d,i){
+            var v = (it.counts && it.counts[d]) || 0;
+            wt += v; catDay[wk][i] += v; grand[wk][i] += v;
+            countRow[range.start+i] = v || '';
+          });
+          countRow[range.total] = wt || '';
+          catTotal[wk] += wt; grandTotal[wk] += wt;
+        });
+        var countRowIdx = pushRow(countRow);
+
+        // Narrative row: same 작업내용/위치 text repeated under each week's
+        // block (the source template lets each week's description differ,
+        // but our extracted data only carries one description per task).
+        var narrRow = emptyRow();
+        var narrText = it.detail || '';
+        if (narrText){
+          narrRow[COLS.prevStart] = narrText;
+          narrRow[COLS.curStart] = narrText;
+          narrRow[COLS.nextStart] = narrText;
+        }
+        var narrRowIdx = pushRow(narrRow);
+
+        merges.push({ s:{r:countRowIdx,c:COLS.task}, e:{r:narrRowIdx,c:COLS.taskEnd} });
+        if (narrText){
+          WEEK_COL_RANGES.forEach(function(range){
+            merges.push({ s:{r:narrRowIdx,c:range.start}, e:{r:narrRowIdx,c:range.end} });
+          });
+        }
+      });
+
+      merges.push({ s:{r:catStartRow,c:COLS.gubun}, e:{r:rowN-1,c:COLS.gubun} });
+      catSummary.push({ cat: cat, day: catDay, total: catTotal });
+    });
+
+    // 출력인원 summary table: one row per category (daily + weekly totals),
+    // then a grand-total 합계 row — matching the original's separate table
+    // below the daily grid, rather than inline 소계 rows.
+    if (catSummary.length){
+      catSummary.forEach(function(cs, idx){
+        var row = emptyRow();
+        if (idx === 0) row[COLS.gubun] = '출력인원';
+        row[COLS.task] = cs.cat;
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          cs.day[wk].forEach(function(v,i){ row[range.start+i] = v || ''; });
+          row[range.total] = cs.total[wk] || '';
+        });
+        pushRow(row);
+      });
+      var gRow = emptyRow();
+      gRow[COLS.task] = '합  계';
+      WEEK_KEYS.forEach(function(wk, wi){
+        var range = WEEK_COL_RANGES[wi];
+        grand[wk].forEach(function(v,i){ gRow[range.start+i] = v || ''; });
+        gRow[range.total] = grandTotal[wk] || '';
+      });
+      pushRow(gRow);
+    }
+
+    // 주요공정 (free-text placeholder, matching the original's boilerplate note)
+    var mpRow = emptyRow();
+    mpRow[COLS.gubun] = '주요공정';
+    mpRow[COLS.prevStart] = '■ 건축일정에 따라 계획은 변동될 수 있음';
+    var mpRowIdx = pushRow(mpRow);
+    merges.push({ s:{r:mpRowIdx,c:COLS.prevStart}, e:{r:mpRowIdx,c:COLS.nextEnd} });
+
+    // 특이사항 (carries over anything flagged in issues)
+    var noteRow = emptyRow();
+    noteRow[COLS.gubun] = '특이사항';
+    noteRow[COLS.task] = (result.issues && result.issues.length) ? result.issues.join(' / ') : '';
+    var noteRowIdx = pushRow(noteRow);
+    merges.push({ s:{r:noteRowIdx,c:COLS.task}, e:{r:noteRowIdx,c:COLS.nextEnd} });
+
+    return { aoa: aoa, merges: merges };
+  }
+
+  // ---------- styled .xlsx export (matches the original template's look) ----------
+  //
+  // The free SheetJS build used above (and for reading uploaded files) can set
+  // up merges and values, but it silently drops cell styling (fills, fonts,
+  // borders) on write — that's a Pro-only feature there. ExcelJS supports full
+  // styling and is used only for this export path.
+  //
+  // Colors/fonts/borders below were read directly out of the real company
+  // template file (openpyxl cell-by-cell inspection) rather than guessed from
+  // a screenshot, so they're the actual values: header band CCCCFF, category
+  // column FFFF99, 출력인원 label 92D050, 주요공정 label FFFF00, 돋움/맑은 고딕
+  // fonts, medium borders at week/section boundaries with thin borders inside.
+
+  var TPL = {
+    headerFill: 'FFCCCCFF',
+    catFill: 'FFFFFF99',
+    outputLabelFill: 'FF92D050',
+    mainProcLabelFill: 'FFFFFF00',
+    borderColor: 'FF000000',
+    fontNum: '돋움',
+    fontText: '맑은 고딕'
+  };
+
+  // Columns where a MEDIUM vertical divider belongs on the LEFT edge — these
+  // are the week/section boundaries (구분 | 공종 | 전주 | 금주 | 차주 | 3 누계
+  // columns). Every other internal column edge gets a plain thin border.
+  var GROUP_STARTS = { 0:true, 1:true, 3:true, 10:true, 17:true, 24:true, 25:true, 26:true };
+
+  // Groups a week's 7 ISO dates into contiguous same-month runs, so the month
+  // header (9월/10월) can span multiple days the way the original template does.
+  function monthRuns(dates){
+    var runs = [], cur = null;
+    dates.forEach(function(d, i){
+      var m = parseInt(d.slice(5,7), 10);
+      if (cur && cur.month === m){ cur.end = i; }
+      else { if (cur) runs.push(cur); cur = { month: m, start: i, end: i }; }
+    });
+    if (cur) runs.push(cur);
+    return runs;
+  }
+
+  function buildStyledWorkbook(result, siteName){
+    var wl = result.weekLayout;
+    var wb = new ExcelJS.Workbook();
+    var ws = wb.addWorksheet('주간공정표', { views: [{ showGridLines: false }] });
+
+    for (var c = 0; c < TOTAL_COLS; c++){
+      ws.getColumn(c+1).width = (c===0) ? 9 : (c===1) ? 13 : (c===2) ? 9 : (c>=3 && c<=23) ? 5.2 : 10;
+    }
+
+    var rowN = 0;
+    function cell(r, c){ return ws.getCell(r+1, c+1); }
+    function mergeR(r1,c1,r2,c2){ if (r1===r2 && c1===c2) return; ws.mergeCells(r1+1,c1+1,r2+1,c2+1); }
+
+    // Applies the grid border scheme to a rectangular region: medium dividers
+    // at week/section column boundaries and at the region's outer top/bottom
+    // edge, thin everywhere else — matching the source file's pattern.
+    function applyGrid(r0, r1, c0, c1, opts){
+      opts = opts || {};
+      var topMedium = opts.topMedium !== false;
+      var bottomMedium = opts.bottomMedium !== false;
+      for (var r=r0; r<=r1; r++){
+        for (var c=c0; c<=c1; c++){
+          var cl = cell(r,c);
+          var left = GROUP_STARTS[c] ? 'medium' : 'thin';
+          var right = (c === TOTAL_COLS-1 || GROUP_STARTS[c+1]) ? 'medium' : 'thin';
+          var top = (r===r0 && topMedium) ? 'medium' : 'thin';
+          var bottom = (r===r1 && bottomMedium) ? 'medium' : 'thin';
+          var col = { style: TPL.borderColor.length ? undefined : undefined };
+          cl.border = {
+            top: { style: top, color: { argb: TPL.borderColor } },
+            bottom: { style: bottom, color: { argb: TPL.borderColor } },
+            left: { style: left, color: { argb: TPL.borderColor } },
+            right: { style: right, color: { argb: TPL.borderColor } }
+          };
+        }
+      }
+    }
+
+    // Title — the source file titles this by trade (e.g. "기계설비공사
+    // 주간예정공정표"); our report aggregates every trade in one sheet, so it
+    // uses the site name instead, but keeps the same large bold centered style.
+    cell(0,0).value = siteName + ' 주간예정공정표';
+    mergeR(0,0,0,TOTAL_COLS-1);
+    cell(0,0).font = { name: '휴먼엑스포', bold: true, size: 26 };
+    cell(0,0).alignment = { horizontal:'center', vertical:'middle' };
+    ws.getRow(1).height = 34;
+
+    // 현장명 / DATE — underlined by a medium rule, as in the source
+    var infoRow = 1;
+    cell(infoRow,COLS.gubun).value = '현 장 명 : ' + siteName;
+    mergeR(infoRow,COLS.gubun,infoRow,COLS.nextEnd);
+    cell(infoRow,COLS.gubun).font = { name: TPL.fontText, bold:true, size:12 };
+    cell(infoRow,COLS.gubun).alignment = { horizontal:'left', vertical:'middle', indent:1 };
+    var today = new Date();
+    var todayStr = today.getFullYear()+'.'+String(today.getMonth()+1).padStart(2,'0')+'.'+String(today.getDate()).padStart(2,'0');
+    cell(infoRow,COLS.prevTotal).value = 'DATE  ' + todayStr;
+    mergeR(infoRow,COLS.prevTotal,infoRow,COLS.nextTotal);
+    cell(infoRow,COLS.prevTotal).font = { name: TPL.fontText, size:11 };
+    cell(infoRow,COLS.prevTotal).alignment = { horizontal:'right', vertical:'middle' };
+    for (var c=0;c<TOTAL_COLS;c++){ cell(infoRow,c).border = { bottom: { style:'medium', color:{argb:TPL.borderColor} } }; }
+    ws.getRow(infoRow+1).height = 20;
+
+    // Header block: month row / week-label row / day-number row / weekday row
+    var monthRowIdx = 2, weekLabelRowIdx = 3, dayNumRowIdx = 4, dowRowIdx = 5;
+    cell(monthRowIdx,COLS.gubun).value = '구분';
+    mergeR(monthRowIdx,COLS.gubun,dowRowIdx,COLS.gubun);
+    cell(monthRowIdx,COLS.task).value = '공종';
+    mergeR(monthRowIdx,COLS.task,dowRowIdx,COLS.taskEnd);
+
+    var totalLabels = ['전주누계','금주누계','차주누계'];
+    WEEK_COL_RANGES.forEach(function(range, wi){
+      cell(monthRowIdx,range.total).value = totalLabels[wi];
+      mergeR(monthRowIdx,range.total,dowRowIdx,range.total);
+    });
+
+    WEEK_KEYS.forEach(function(wk, wi){
+      var range = WEEK_COL_RANGES[wi];
+      monthRuns(wl[wk]).forEach(function(run){
+        var c1 = range.start+run.start, c2 = range.start+run.end;
+        cell(monthRowIdx,c1).value = run.month + '월';
+        mergeR(monthRowIdx,c1,monthRowIdx,c2);
+      });
+      cell(weekLabelRowIdx,range.start).value = WEEK_LABELS[wi];
+      mergeR(weekLabelRowIdx,range.start,weekLabelRowIdx,range.end);
+      wl[wk].forEach(function(d,i){
+        cell(dayNumRowIdx,range.start+i).value = parseInt(d.slice(8,10),10);
+        var dowCell = cell(dowRowIdx,range.start+i);
+        dowCell.value = DOW[i];
+        // Only Sunday is colored red in the source template — Saturday stays
+        // the normal default color.
+        dowCell.font = (i===DOW_SUNDAY_IDX) ? { name: TPL.fontNum, bold:true, size:11, color:{argb:'FFFF0000'} }
+                                : { name: TPL.fontNum, bold:true, size:11 };
+        var dayNumCell = cell(dayNumRowIdx,range.start+i);
+        dayNumCell.font = (i===DOW_SUNDAY_IDX) ? { name: TPL.fontNum, bold:true, size:11, color:{argb:'FFFF0000'} }
+                                   : { name: TPL.fontNum, bold:true, size:11 };
+      });
+    });
+
+    for (var r = monthRowIdx; r <= dowRowIdx; r++){
+      for (var c = 0; c < TOTAL_COLS; c++){
+        var cl = cell(r,c);
+        cl.alignment = Object.assign({ horizontal:'center', vertical:'middle' }, cl.alignment||{});
+        if (r === monthRowIdx || r === weekLabelRowIdx){
+          cl.fill = { type:'pattern', pattern:'solid', fgColor:{argb:TPL.headerFill} };
+          cl.font = Object.assign({ name: TPL.fontNum, bold:true, size:11 }, cl.font||{});
+        }
+      }
+    }
+    applyGrid(monthRowIdx, dowRowIdx, 0, TOTAL_COLS-1);
+    ws.getRow(monthRowIdx+1).height = 16;
+    ws.getRow(weekLabelRowIdx+1).height = 18;
+    ws.getRow(dayNumRowIdx+1).height = 14;
+    ws.getRow(dowRowIdx+1).height = 14;
+    rowN = dowRowIdx + 1;
+
+    var rowsByCat = {};
+    (result.rows||[]).forEach(function(r){
+      var cat = r.majorCategory || '기타';
+      if (!rowsByCat[cat]) rowsByCat[cat] = [];
+      rowsByCat[cat].push(r);
+    });
+    var catOrderFull = CATEGORY_ORDER.concat(Object.keys(rowsByCat).filter(function(c){ return CATEGORY_ORDER.indexOf(c)===-1; }));
+    var catSummary = [];
+    var grand = emptyWeekTotals(wl);
+    var grandTotal = { prev:0, cur:0, next:0 };
+
+    catOrderFull.forEach(function(cat){
+      var items = rowsByCat[cat];
+      if (!items || !items.length) return;
+      var catStartRow = rowN;
+      var catDay = emptyWeekTotals(wl);
+      var catTotal = { prev:0, cur:0, next:0 };
+
+      items.forEach(function(it, idx){
+        var countRowIdx = rowN;
+        if (idx === 0) cell(countRowIdx,COLS.gubun).value = cat;
+        cell(countRowIdx,COLS.task).value = it.task || '';
+        cell(countRowIdx,COLS.task).font = { name: TPL.fontText, size:11 };
+        cell(countRowIdx,COLS.task).alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          var wt = 0;
+          wl[wk].forEach(function(d,i){
+            var v = (it.counts && it.counts[d]) || 0;
+            wt += v; catDay[wk][i] += v; grand[wk][i] += v;
+            var vc = cell(countRowIdx,range.start+i);
+            if (v) vc.value = v;
+            vc.font = { name: TPL.fontNum, size:10 };
+            vc.alignment = { horizontal:'center', vertical:'middle' };
+          });
+          catTotal[wk] += wt; grandTotal[wk] += wt;
+          var tc = cell(countRowIdx,range.total);
+          if (wt) tc.value = wt;
+          tc.font = { name: TPL.fontNum, size:10 };
+          tc.alignment = { horizontal:'center', vertical:'middle' };
+        });
+        rowN++;
+
+        // Narrative row: 작업내용/위치 text, merged across each week's block.
+        var narrRowIdx = rowN;
+        var narrText = it.detail || '';
+        mergeR(countRowIdx,COLS.task,narrRowIdx,COLS.taskEnd);
+        if (narrText){
+          WEEK_COL_RANGES.forEach(function(range){
+            cell(narrRowIdx,range.start).value = narrText;
+            mergeR(narrRowIdx,range.start,narrRowIdx,range.end);
+            var nc = cell(narrRowIdx,range.start);
+            nc.font = { name: TPL.fontNum, size:10 };
+            nc.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+          });
+        }
+        rowN++;
+
+        applyGrid(countRowIdx, narrRowIdx, 0, TOTAL_COLS-1, { topMedium:false, bottomMedium:false });
+        ws.getRow(countRowIdx+1).height = 15;
+        ws.getRow(narrRowIdx+1).height = 26;
+      });
+
+      // Category block gets a medium frame top/bottom, matching the source.
+      applyGrid(catStartRow, rowN-1, 0, TOTAL_COLS-1, { topMedium:true, bottomMedium:true });
+      mergeR(catStartRow,COLS.gubun,rowN-1,COLS.gubun);
+      var gc = cell(catStartRow,COLS.gubun);
+      gc.font = { name: TPL.fontNum, bold:true, size:9 };
+      gc.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+      gc.fill = { type:'pattern', pattern:'solid', fgColor:{argb:TPL.catFill} };
+
+      catSummary.push({ cat: cat, day: catDay, total: catTotal });
+    });
+
+    // 출력인원 summary table — only the "출력인원" label cell is filled
+    // (green) in the source; the data cells themselves carry no fill.
+    if (catSummary.length){
+      var outStart = rowN;
+      catSummary.forEach(function(cs, idx){
+        var r = rowN;
+        if (idx === 0){
+          cell(r,COLS.gubun).value = '출력인원';
+          cell(r,COLS.gubun).font = { name: TPL.fontNum, bold:true, size:11 };
+          cell(r,COLS.gubun).alignment = { horizontal:'center', vertical:'middle' };
+          cell(r,COLS.gubun).fill = { type:'pattern', pattern:'solid', fgColor:{argb:TPL.outputLabelFill} };
+        }
+        cell(r,COLS.task).value = cs.cat;
+        cell(r,COLS.task).font = { name: TPL.fontText, size:11 };
+        cell(r,COLS.task).alignment = { horizontal:'left', vertical:'middle', indent:1 };
+        WEEK_KEYS.forEach(function(wk, wi){
+          var range = WEEK_COL_RANGES[wi];
+          cs.day[wk].forEach(function(v,i){
+            var vc = cell(r,range.start+i);
+            if (v) vc.value = v;
+            vc.font = { name: TPL.fontNum, size:10 };
+            vc.alignment = { horizontal:'center', vertical:'middle' };
+          });
+          var tc = cell(r,range.total);
+          if (cs.total[wk]) tc.value = cs.total[wk];
+          tc.font = { name: TPL.fontNum, size:10 };
+          tc.alignment = { horizontal:'center', vertical:'middle' };
+        });
+        ws.getRow(r+1).height = 15;
+        rowN++;
+      });
+      var gRow = rowN;
+      cell(gRow,COLS.task).value = '합  계';
+      cell(gRow,COLS.task).font = { name: TPL.fontNum, bold:true, size:11 };
+      cell(gRow,COLS.task).alignment = { horizontal:'center', vertical:'middle' };
+      WEEK_KEYS.forEach(function(wk, wi){
+        var range = WEEK_COL_RANGES[wi];
+        grand[wk].forEach(function(v,i){
+          var vc = cell(gRow,range.start+i);
+          if (v) vc.value = v;
+          vc.font = { name: TPL.fontNum, bold:true, size:10 };
+          vc.alignment = { horizontal:'center', vertical:'middle' };
+        });
+        var tc = cell(gRow,range.total);
+        if (grandTotal[wk]) tc.value = grandTotal[wk];
+        tc.font = { name: TPL.fontNum, bold:true, size:10 };
+        tc.alignment = { horizontal:'center', vertical:'middle' };
+      });
+      rowN++;
+      applyGrid(outStart, gRow, 0, TOTAL_COLS-1, { topMedium:true, bottomMedium:true });
+      mergeR(outStart,COLS.gubun,gRow-1,COLS.gubun);
+    }
+
+    // 주요공정 — label cell filled bright yellow, boilerplate note bold red,
+    // exactly as in the source file.
+    var mpRow = rowN;
+    cell(mpRow,COLS.gubun).value = '주요공정';
+    cell(mpRow,COLS.gubun).font = { name: TPL.fontNum, bold:true, size:11 };
+    cell(mpRow,COLS.gubun).alignment = { horizontal:'center', vertical:'middle' };
+    cell(mpRow,COLS.gubun).fill = { type:'pattern', pattern:'solid', fgColor:{argb:TPL.mainProcLabelFill} };
+    cell(mpRow,COLS.prevStart).value = '■ 건축일정에 따라 계획은 변동될 수 있음';
+    mergeR(mpRow,COLS.prevStart,mpRow,COLS.nextEnd);
+    cell(mpRow,COLS.prevStart).font = { name: TPL.fontText, bold:true, size:11, color:{argb:'FFFF0000'} };
+    cell(mpRow,COLS.prevStart).alignment = { horizontal:'center', vertical:'middle' };
+    applyGrid(mpRow, mpRow, 0, TOTAL_COLS-1, { topMedium:true, bottomMedium:false });
+    ws.getRow(mpRow+1).height = 20;
+    rowN++;
+
+    // 특이사항 — no fill in the source, just a bold label.
+    var noteRow = rowN;
+    cell(noteRow,COLS.gubun).value = '특이사항';
+    cell(noteRow,COLS.gubun).font = { name: TPL.fontNum, bold:true, size:11 };
+    cell(noteRow,COLS.gubun).alignment = { horizontal:'center', vertical:'middle' };
+    cell(noteRow,COLS.task).value = (result.issues && result.issues.length) ? result.issues.join(' / ') : '';
+    mergeR(noteRow,COLS.task,noteRow,COLS.nextEnd);
+    cell(noteRow,COLS.task).font = { name: TPL.fontText, size:10 };
+    cell(noteRow,COLS.task).alignment = { horizontal:'left', vertical:'middle', indent:1, wrapText:true };
+    applyGrid(noteRow, noteRow, 0, TOTAL_COLS-1, { topMedium:false, bottomMedium:true });
+    ws.getRow(noteRow+1).height = 22;
+
+    return wb;
+  }
+
+  els.downloadBtn.addEventListener('click', async function(){
+    if (!lastResult) return;
+    var siteName = els.siteName.value.trim() || lastResult.site || '현장';
+    var wb = buildStyledWorkbook(lastResult, siteName);
+    var buf = await wb.xlsx.writeBuffer();
+    var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var wl = lastResult.weekLayout;
+    var filename = siteName + '_' + wl.cur[0] + '_주간공정표.xlsx';
+    if (downloadsCap){
+      try {
+        await downloadsCap.save({ filename: filename, data: blob });
+      } catch(e){
+        setStatus('다운로드에 실패했어요.', true);
+      }
+    }
+  });
+
+  els.copyBtn.addEventListener('click', async function(){
+    if (!lastResult) return;
+    var siteName = els.siteName.value.trim() || lastResult.site || '현장';
+    var built = buildAOA(lastResult, siteName);
+    var tsv = built.aoa.map(function(row){ return row.join('\t'); }).join('\n');
+    try {
+      await navigator.clipboard.writeText(tsv);
+      var orig = els.copyBtn.textContent;
+      els.copyBtn.textContent = '복사됨';
+      setTimeout(function(){ els.copyBtn.textContent = orig; }, 1500);
+    } catch(e){}
+  });
+
+})();
+</script>
